@@ -1,56 +1,27 @@
-# Welcome to your Expo app 👋
+# Takoma HD Mobile
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Expo Router mobile app for browsing active news from the Firebase client database.
 
-## Get started
+## Firebase configuration
 
-1. Install dependencies
+Copy `.env.example` to `.env` and provide the Firebase **client** configuration values:
 
-   ```bash
-   npm install
-   ```
+- `EXPO_PUBLIC_FIREBASE_API_KEY`
+- `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN`
+- `EXPO_PUBLIC_FIREBASE_PROJECT_ID`
+- `EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET`
+- `EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
+- `EXPO_PUBLIC_FIREBASE_APP_ID`
 
-2. Start the app
+These `EXPO_PUBLIC_` values are bundled into the app. Never put Firebase Admin credentials or service account keys here.
 
-   ```bash
-   npx expo start
-   ```
+The reader subscribes to the `news` and `categories` Firestore collections. News documents should have `title`, `date`, `categoryId`, `type`, `image`, `description`, `descriptionText`, and `status` fields. Only active news is shown. Saved story IDs and display preferences are stored on the device.
 
-In the output, you'll find options to open the app in a
+## Screens
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+- Home: latest active stories, search, featured/breaking filters
+- Category: browse stories by category
+- Play: video placeholder until a video collection/source is defined
+- Saved: stories bookmarked on this device
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
-```
-
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-### Other setup steps
-
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+English and Amharic are available from the preferences control, along with system, light, and dark appearance modes.

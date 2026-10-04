@@ -1,18 +1,23 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
-
+import { Stack } from 'expo-router';
+import { useState } from 'react';
+import { StyleSheet, View } from 'react-native';
+import { AppPreferencesProvider } from '@/components/app-preferences-provider';
+import { MobileSearchProvider } from '@/components/reader-ui';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
-
-SplashScreen.preventAutoHideAsync();
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const [startupComplete, setStartupComplete] = useState(false);
+
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <AppTabs />
-    </ThemeProvider>
+    <AppPreferencesProvider>
+      <MobileSearchProvider>
+        <View style={styles.root}>
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }} />
+          {!startupComplete ? <AnimatedSplashOverlay onComplete={() => setStartupComplete(true)} /> : null}
+        </View>
+      </MobileSearchProvider>
+    </AppPreferencesProvider>
   );
 }
+
+const styles = StyleSheet.create({ root: { flex: 1 } });
