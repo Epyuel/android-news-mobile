@@ -6,7 +6,8 @@ import { ActivityIndicator, Alert, Animated, Modal, Pressable, ScrollView, Share
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ExpoLinking from 'expo-linking';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { registerForPushNotifications } from '@/lib/push-notifications';
+import { doc, increment, onSnapshot, updateDoc } from 'firebase/firestore';
 import { useAppPreferences } from '@/components/app-preferences-provider';
 import { Colors } from '@/constants/theme';
 import type { AppLegalSettings, News, NewsCategory } from '@/constants/news-types';
@@ -14,6 +15,8 @@ import { useTheme } from '@/hooks/use-theme';
 import AppTabs, { type AppTabKey } from '@/components/app-tabs';
 import { db } from '@/constants/firebase-client';
 import appConfig from '../../app.json';
+import { AdBanner, InterstitialController, NativeFeedAd, type BannerPlacement } from '@/components/ad-units';
+import { useAdsConfiguration } from '@/components/ads-provider';
 
 const playStoreAppSearch = 'https://play.google.com/store/search?q=DANA%20HD&c=apps';
 const playStorePublisherSearch = 'https://play.google.com/store/search?q=Kana%20Plus&c=apps';
@@ -207,7 +210,7 @@ export function useMobileSearch() {
   return value;
 }
 
-export function MobileShell({ active, children }: PropsWithChildren<{ active: AppTabKey }>) {
+export function MobileShell({ active, children, bannerPlacement }: PropsWithChildren<{ active: AppTabKey; bannerPlacement?: BannerPlacement }>) {
   const theme = useTheme();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -219,6 +222,7 @@ export function MobileShell({ active, children }: PropsWithChildren<{ active: Ap
   const [legalLoading, setLegalLoading] = useState(false);
   const [legalError, setLegalError] = useState('');
   const { query, setQuery } = useMobileSearch();
+  const pageBanner: BannerPlacement = bannerPlacement ?? ({ home: 'bannerHome', video: 'bannerVideo', social: 'bannerHome', download: 'bannerDownload', saved: 'bannerSaved' } as const)[active];
   const headerOffset = useRef(new Animated.Value(0)).current;
   const headerVisible = useRef(true);
   const setHeaderVisible = useCallback((visible: boolean) => {
@@ -320,6 +324,7 @@ export function MobileShell({ active, children }: PropsWithChildren<{ active: Ap
         <SearchVisibilityContext.Provider value={setHeaderVisible}>
           <View style={styles.content}>{children}</View>
         </SearchVisibilityContext.Provider>
+        {active !== 'social' ? <AdBanner placement={pageBanner} anchored bottom={insets.bottom + 68} /> : null}
         <AppTabs active={active} bottomInset={insets.bottom} />
       </View>
       <Modal
@@ -372,7 +377,9 @@ export function MobileShell({ active, children }: PropsWithChildren<{ active: Ap
                     </Pressable>
                   ))}
                 </View>
-                <Pressable onPress={() => void ExpoLinking.openSettings().catch(() => Alert.alert(t('settings'), t('settingsLinkUnavailable')))} style={[styles.settingsActionRow, { borderTopColor: theme.backgroundSelected }]}>
+                <Pressable onPress={() => void registerForPushNotifications().then((enabled) => {
+                  Alert.alert(t('pushNotification'), enabled === null ? t('pushRegistrationFailed') : enabled ? t('pushEnabled') : t('pushPermissionDenied'));
+                }).catch(() => Alert.alert(t('pushNotification'), t('pushRegistrationFailed')))} style={[styles.settingsActionRow, { borderTopColor: theme.backgroundSelected }]}>
                   <Bell size={19} color={theme.textSecondary} /><View style={styles.settingsRowCopy}><Text style={[styles.settingsRowTitle, { color: theme.text }]}>{t('pushNotification')}</Text><Text style={[styles.settingsRowHint, { color: theme.textSecondary }]}>{t('pushNotificationHint')}</Text></View><ChevronDown size={18} color={theme.textSecondary} style={styles.sideChevron} />
                 </Pressable>
               </SettingsGroup>
@@ -441,8 +448,9 @@ function SettingsAction({ icon, title, subtitle, onPress, theme }: {
   );
 }
 
-export function NewsFeed({ items, categories, savedIds, onToggleSaved, emptyMessage, featuredFirst = true }: {
+export function NewsFeed({ items, relatedItems = items, categories, savedIds, onToggleSaved, emptyMessage, featuredFirst = true }: {
   items: News[];
+  relatedItems?: News[];
   categories: NewsCategory[];
   savedIds: string[];
   onToggleSaved: (id: string) => void;
@@ -452,22 +460,36 @@ export function NewsFeed({ items, categories, savedIds, onToggleSaved, emptyMess
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { t, i18n } = useTranslation();
+  const ads = useAdsConfiguration();
+  const interstitialEnabled = ads.adStatus === 'on' && (ads.placements.interstitialPostList || ads.placements.interstitialPostDetails);
+  const [interstitialRequestCount, setInterstitialRequestCount] = useState(0);
   const [selected, setSelected] = useState<News | null>(null);
+  const nativeInterval = ads.nativeAdInterval;
+  const nativeEnabled = ads.adStatus === 'on' && ads.nativeAdsEnabled && ads.placements.nativePostList && Boolean(ads.admobNativeAdUnitId);
+  const openNews = (item: News) => {
+    setSelected(item);
+    setInterstitialRequestCount((count) => count + 1);
+    void updateDoc(doc(db, 'news', item.id), { views: increment(1) }).catch(() => undefined);
+  };
+  const related = selected ? relatedItems.filter((item) => item.id !== selected.id && item.categoryId === selected.categoryId).slice(0, 6) : [];
   if (!items.length) {
     return <View style={styles.emptyWrap}><Text style={[styles.empty, { color: theme.textSecondary }]}>{emptyMessage}</Text></View>;
   }
   return (
     <View style={styles.feed}>
+      <InterstitialController enabled={interstitialEnabled} unitId={ads.admobInterstitialAdUnitId} requestCount={interstitialRequestCount} interval={ads.interstitialAdInterval} />
       {items.map((item, index) => (
-        <NewsCard
-          key={item.id}
-          news={item}
-          category={categories.find((category) => category.id === item.categoryId)?.name ?? categories.find((category) => category.name === item.categoryId)?.name}
-          featured={featuredFirst && index === 0}
-          saved={savedIds.includes(item.id)}
-          onToggleSaved={() => onToggleSaved(item.id)}
-          onOpen={() => setSelected(item)}
-        />
+        <View key={item.id}>
+          <NewsCard
+            news={item}
+            category={categories.find((category) => category.id === item.categoryId)?.name ?? categories.find((category) => category.name === item.categoryId)?.name}
+            featured={featuredFirst && index === 0}
+            saved={savedIds.includes(item.id)}
+            onToggleSaved={() => onToggleSaved(item.id)}
+            onOpen={() => openNews(item)}
+          />
+          {nativeEnabled && (index + 1) % nativeInterval === 0 ? <NativeFeedAd size={ads.nativeAdStyles.postList} /> : null}
+        </View>
       ))}
       <Modal
         visible={Boolean(selected)}
@@ -488,17 +510,23 @@ export function NewsFeed({ items, categories, savedIds, onToggleSaved, emptyMess
               <Text style={[styles.detailTitle, { color: theme.text }]}>{selected?.title}</Text>
               <Text style={[styles.dateText, { color: theme.textSecondary }]}>{selected ? formatNewsDate(selected.date, i18n.language) : ''}</Text>
               <Text style={[styles.detailDescription, { color: theme.text }]}>{selected?.descriptionText || stripHtml(selected?.description ?? '') || t('noDescription')}</Text>
+              {ads.adStatus === 'on' && ads.nativeAdsEnabled && ads.placements.nativePostDetails ? <NativeFeedAd size={ads.nativeAdStyles.postDetails} enabled /> : null}
+              <AdBanner placement="bannerPostDetails" />
+              {related.length ? (
+                <View style={styles.relatedSection}>
+                  <Text style={[styles.relatedHeading, { color: theme.text }]}>{t('relatedNews')}</Text>
+                  {related.map((item) => (
+                    <Pressable key={item.id} onPress={() => openNews(item)} style={[styles.relatedItem, { borderBottomColor: theme.backgroundSelected }]}>
+                      {item.image ? <Image source={{ uri: item.image }} style={styles.relatedImage} contentFit="cover" /> : null}
+                      <View style={styles.relatedCopy}>
+                        <Text numberOfLines={2} style={[styles.relatedTitle, { color: theme.text }]}>{item.title}</Text>
+                        <Text numberOfLines={2} style={[styles.relatedDescription, { color: theme.textSecondary }]}>{item.descriptionText || stripHtml(item.description)}</Text>
+                      </View>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
             </ScrollView>
-            {selected ? (
-              <View style={styles.detailActions}>
-                <Pressable onPress={() => void Share.share({ title: selected.title, message: selected.descriptionText || selected.title })} style={[styles.detailAction, { backgroundColor: theme.backgroundSelected }]}>
-                  <Text style={[styles.segmentText, { color: theme.text }]}>{t('share')}</Text>
-                </Pressable>
-                <Pressable onPress={() => onToggleSaved(selected.id)} style={[styles.detailAction, { backgroundColor: '#147fe8' }]}>
-                  <Text style={[styles.segmentText, { color: '#fff' }]}>{savedIds.includes(selected.id) ? t('savedLabel') : t('save')}</Text>
-                </Pressable>
-              </View>
-            ) : null}
           </View>
         </View>
       </Modal>
@@ -633,6 +661,13 @@ const styles = StyleSheet.create({
   detailImage: { width: '100%', aspectRatio: 1.58, borderRadius: 17, backgroundColor: '#dce8f4', marginBottom: 20 },
   detailTitle: { fontSize: 25, lineHeight: 32, fontWeight: '800', marginBottom: 8 },
   detailDescription: { marginTop: 18, fontSize: 16, lineHeight: 26 },
+  relatedSection: { marginTop: 24, gap: 5 },
+  relatedHeading: { fontSize: 18, fontWeight: '700', marginBottom: 5 },
+  relatedItem: { minHeight: 82, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth },
+  relatedImage: { width: 88, height: 66, borderRadius: 9, backgroundColor: '#dce8f4' },
+  relatedCopy: { flex: 1, gap: 4 },
+  relatedTitle: { fontSize: 14, lineHeight: 19, fontWeight: '700' },
+  relatedDescription: { fontSize: 12, lineHeight: 17 },
   detailActions: { flexDirection: 'row', gap: 10, paddingTop: 10 },
   detailAction: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
   settingsScreen: { flex: 1 },

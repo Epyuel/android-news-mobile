@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "913591199505",
+    "project_id": "android-news-fabfe",
+    "storage_bucket": "android-news-fabfe.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:913591199505:android:f12e856dfe376e86834eb0",
+        "android_client_info": {
+          "package_name": "com.haileyesus.danahd"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDxB3CqTw2XO2EcCAqewgHyY7zaBk18B9c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,8 +1,11 @@
 import { useTranslation } from 'react-i18next';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Link2, MessageCircle, Play, X } from 'lucide-react-native';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as MediaLibrary from 'expo-media-library/legacy';
+import { WebView } from 'react-native-webview';
 import { SiFacebook, SiInstagram, SiTelegram, SiTiktok, SiYoutube } from '@thinkhuman/react-native-simple-icons';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { ContentScroll, LoadingOrError, MobileShell, NewsFeed, ScreenHeading, useMobileSearch } from '@/components/reader-ui';
@@ -11,6 +14,8 @@ import { useNews } from '@/hooks/use-news';
 import { useSavedNews } from '@/hooks/use-saved-news';
 import { db } from '@/constants/firebase-client';
 import type { NewsVideo, SocialLink } from '@/constants/news-types';
+import { NativeFeedAd } from '@/components/ad-units';
+import { useAdsConfiguration } from '@/components/ads-provider';
 
 export function HomeScreen() {
   const { news, categories, loading, error } = useNews();
@@ -19,7 +24,6 @@ export function HomeScreen() {
   const { query } = useMobileSearch();
   const theme = useTheme();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-
   const visible = useMemo(() => news.filter((item) => {
     const text = `${item.title} ${item.descriptionText}`.toLocaleLowerCase();
     const matchesCategory = !selectedCategory || item.categoryId === selectedCategory || categories.find((category) => category.id === selectedCategory)?.name === item.categoryId;
@@ -46,7 +50,7 @@ export function HomeScreen() {
           </View>
         ) : null}
         {loading || error ? <LoadingOrError loading={loading} error={error} /> : (
-          <NewsFeed items={visible} categories={categories} savedIds={savedIds} onToggleSaved={toggleSaved} emptyMessage={query ? t('emptySearch') : t('emptyNews')} />
+          <NewsFeed items={visible} relatedItems={news} categories={categories} savedIds={savedIds} onToggleSaved={toggleSaved} emptyMessage={query ? t('emptySearch') : t('emptyNews')} />
         )}
       </ContentScroll>
     </MobileShell>
@@ -68,9 +72,11 @@ export function VideoScreen() {
   const { t, i18n } = useTranslation();
   const theme = useTheme();
   const { query } = useMobileSearch();
+  const ads = useAdsConfiguration();
   const [videos, setVideos] = useState<NewsVideo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [selectedVideo, setSelectedVideo] = useState<NewsVideo | null>(null);
 
   useEffect(() => onSnapshot(collection(db, 'videos'), (snapshot) => {
     const items = snapshot.docs.map((item) => {
@@ -92,23 +98,55 @@ export function VideoScreen() {
       <ContentScroll>
         <ScreenHeading title={t('videos')} compact />
         {loading || error ? <LoadingOrError loading={loading} error={error} /> : visible.length ? <View style={styles.videoList}>
-          {visible.map((video) => {
+          {visible.map((video, index) => {
             const id = youtubeId(video.videoUrl);
             const thumbnail = id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : '';
-            return <Pressable key={video.id} accessibilityRole="link" accessibilityLabel={video.title} onPress={() => void Linking.openURL(video.videoUrl)} style={[styles.videoCard, { backgroundColor: theme.backgroundElement }]}>
-              <View style={styles.videoImageWrap}>
-                {thumbnail ? <Image source={{ uri: thumbnail }} style={styles.videoImage} contentFit="cover" /> : <View style={[styles.videoImage, { backgroundColor: theme.backgroundSelected }]} />}
-                <View style={styles.videoPlay}><Play size={22} color="#fff" fill="#fff" /></View>
-              </View>
-              <Text numberOfLines={2} style={[styles.videoTitle, { color: theme.text }]}>{video.title}</Text>
-              <View style={styles.videoMeta}>
-                <Text style={[styles.videoDate, { color: theme.textSecondary }]}>{formatVideoDate(video.createdAt, i18n.language)}</Text>
-                <View style={styles.commentMeta}><MessageCircle size={15} color={theme.textSecondary} /><Text style={[styles.videoDate, { color: theme.textSecondary }]}>YouTube</Text></View>
-              </View>
-            </Pressable>;
+            return <View key={video.id}>
+              <Pressable accessibilityRole="button" accessibilityLabel={video.title} onPress={() => setSelectedVideo(video)} style={[styles.videoCard, { backgroundColor: theme.backgroundElement }]}>
+                <View style={styles.videoImageWrap}>
+                  {thumbnail ? <Image source={{ uri: thumbnail }} style={styles.videoImage} contentFit="cover" /> : <View style={[styles.videoImage, { backgroundColor: theme.backgroundSelected }]} />}
+                  <View style={styles.videoPlay}><Play size={22} color="#fff" fill="#fff" /></View>
+                </View>
+                <Text numberOfLines={2} style={[styles.videoTitle, { color: theme.text }]}>{video.title}</Text>
+                <View style={styles.videoMeta}>
+                  <Text style={[styles.videoDate, { color: theme.textSecondary }]}>{formatVideoDate(video.createdAt, i18n.language)}</Text>
+                  <View style={styles.commentMeta}><MessageCircle size={15} color={theme.textSecondary} /><Text style={[styles.videoDate, { color: theme.textSecondary }]}>YouTube</Text></View>
+                </View>
+              </Pressable>
+              {ads.adStatus === 'on' && ads.nativeAdsEnabled && ads.placements.nativePostList && ads.admobNativeAdUnitId && (index + 1) % ads.nativeAdInterval === 0 ? <NativeFeedAd size={ads.nativeAdStyles.videoList} enabled /> : null}
+            </View>;
           })}
         </View> : <View style={styles.empty}><Text style={[styles.emptyText, { color: theme.textSecondary }]}>{t('noVideos')}</Text></View>}
       </ContentScroll>
+      <Modal visible={Boolean(selectedVideo)} animationType="slide" statusBarTranslucent navigationBarTranslucent onRequestClose={() => setSelectedVideo(null)}>
+        <View style={[styles.playerScreen, { backgroundColor: theme.background }]}>
+          <View style={styles.playerHeader}>
+            <Pressable accessibilityLabel={t('close')} onPress={() => setSelectedVideo(null)} style={styles.playerClose}><X size={22} color={theme.text} /></Pressable>
+            <Text numberOfLines={2} style={[styles.playerTitle, { color: theme.text }]}>{selectedVideo?.title}</Text>
+          </View>
+          {selectedVideo ? <WebView
+            key={selectedVideo.id}
+            source={{ uri: youtubeId(selectedVideo.videoUrl)
+              ? `https://m.youtube.com/watch?v=${encodeURIComponent(youtubeId(selectedVideo.videoUrl))}&app=m&persist_app=1`
+              : selectedVideo.videoUrl }}
+            style={styles.playerWebView}
+            originWhitelist={['https://*', 'http://*', 'about:blank']}
+            javaScriptEnabled
+            domStorageEnabled
+            allowsFullscreenVideo
+            allowsInlineMediaPlayback
+            setSupportMultipleWindows={false}
+            userAgent="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
+            mediaPlaybackRequiresUserAction={false}
+            onShouldStartLoadWithRequest={(request) => {
+              try {
+                const host = new URL(request.url).hostname.toLowerCase();
+                return ['youtube.com', 'youtu.be', 'youtube-nocookie.com', 'googlevideo.com', 'google.com', 'gstatic.com', 'googleapis.com', 'ytimg.com', 'googleusercontent.com'].some((domain) => host === domain || host.endsWith(`.${domain}`));
+              } catch { return false; }
+            }}
+          /> : null}
+        </View>
+      </Modal>
     </MobileShell>
   );
 }
@@ -175,6 +213,7 @@ export function DownloadScreen() {
   const [preview, setPreview] = useState<TikTokPreview | null>(null);
   const [downloadUrl, setDownloadUrl] = useState('');
   const [loading, setLoading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState('');
 
   const getVideo = async () => {
@@ -246,11 +285,38 @@ export function DownloadScreen() {
     }
   };
 
+  const downloadVideo = async () => {
+    if (!downloadUrl || downloading) return;
+    const directory = FileSystem.documentDirectory ?? FileSystem.cacheDirectory;
+    if (!directory) {
+      Alert.alert(t('download'), t('downloadLinkUnavailable'));
+      return;
+    }
+    setDownloading(true);
+    try {
+      const permission = await MediaLibrary.requestPermissionsAsync(true, ['video']);
+      if (!permission.granted) {
+        Alert.alert(t('download'), t('galleryPermissionRequired'));
+        return;
+      }
+      const result = await FileSystem.downloadAsync(downloadUrl, `${directory}tiktok-${Date.now()}.mp4`);
+      if (result.status < 200 || result.status >= 300) throw new Error('Download request failed');
+      const contentType = Object.entries(result.headers).find(([name]) => name.toLowerCase() === 'content-type')?.[1]?.toLowerCase() ?? '';
+      if (contentType.includes('text/html') || contentType.includes('application/json')) throw new Error('The link did not return a video file');
+      await MediaLibrary.createAssetAsync(result.uri);
+      Alert.alert(t('download'), t('downloadComplete'));
+    } catch {
+      Alert.alert(t('download'), t('downloadFailed'));
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
     <MobileShell active="download">
       <ContentScroll>
         <ScreenHeading title={t('tiktokDownloader')} compact />
-        <View style={styles.downloaderContent}>
+        <View style={[styles.downloaderContent, downloadUrl ? styles.downloaderBottomSpace : null]}>
           <Text style={[styles.downloaderDescription, { color: theme.textSecondary }]}>{t('tiktokDownloaderDescription')}</Text>
           <View style={[styles.downloaderInputWrap, { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected }]}>
             <TextInput
@@ -276,7 +342,7 @@ export function DownloadScreen() {
             {preview.thumbnail ? <Image source={{ uri: preview.thumbnail }} style={styles.previewImage} contentFit="cover" /> : null}
             <Text style={[styles.previewTitle, { color: theme.text }]}>{preview.title || t('tiktokVideo')}</Text>
             {preview.author ? <Text style={[styles.previewAuthor, { color: theme.textSecondary }]}>{preview.author}</Text> : null}
-            {downloadUrl ? <Pressable onPress={() => void Linking.openURL(downloadUrl)} style={styles.resolveButton}><Text style={styles.resolveButtonText}>{t('downloadVideo')}</Text></Pressable> : <Text style={[styles.serviceHint, { color: theme.textSecondary }]}>{t('downloaderServiceRequired')}</Text>}
+            {downloadUrl ? <Pressable disabled={downloading} onPress={() => void downloadVideo()} style={[styles.resolveButton, downloading && styles.resolveButtonDisabled]}>{downloading ? <ActivityIndicator color="#fff" /> : <Text style={styles.resolveButtonText}>{t('downloadVideo')}</Text>}</Pressable> : <Text style={[styles.serviceHint, { color: theme.textSecondary }]}>{t('downloaderServiceRequired')}</Text>}
           </View> : null}
         </View>
       </ContentScroll>
@@ -297,7 +363,7 @@ export function SavedScreen() {
       <ContentScroll>
         <ScreenHeading title={t('saved')} compact />
         {loading || error ? <LoadingOrError loading={loading} error={error} /> : (
-          <NewsFeed items={visibleSaved} categories={categories} savedIds={savedIds} onToggleSaved={toggleSaved} emptyMessage={t('emptySaved')} featuredFirst={false} />
+          <NewsFeed items={visibleSaved} relatedItems={news} categories={categories} savedIds={savedIds} onToggleSaved={toggleSaved} emptyMessage={t('emptySaved')} featuredFirst={false} />
         )}
       </ContentScroll>
     </MobileShell>
@@ -330,6 +396,11 @@ const styles = StyleSheet.create({
   videoDetailTitle: { fontSize: 20, lineHeight: 27, fontWeight: '700', marginTop: 14 },
   watchButton: { minHeight: 45, marginTop: 15, borderRadius: 23, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#147fe8' },
   watchButtonText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  playerScreen: { flex: 1, paddingTop: 48 },
+  playerHeader: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingBottom: 10 },
+  playerClose: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  playerTitle: { flex: 1, fontSize: 16, fontWeight: '700' },
+  playerWebView: { flex: 1, backgroundColor: '#000' },
   commentsHeading: { fontSize: 16, fontWeight: '700', marginTop: 20, marginBottom: 8 },
   detailsLoading: { paddingVertical: 20 },
   comment: { paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth },
@@ -340,6 +411,7 @@ const styles = StyleSheet.create({
   socialIconWrap: { width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center' },
   socialName: { fontSize: 15, fontWeight: '700', textAlign: 'center' },
   downloaderContent: { gap: 13 },
+  downloaderBottomSpace: { paddingBottom: 112 },
   downloaderDescription: { fontSize: 14, lineHeight: 21, marginBottom: 4 },
   downloaderInputWrap: { minHeight: 50, borderWidth: 1, borderRadius: 13, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 8 },
   downloaderInput: { flex: 1, minHeight: 48, fontSize: 14 },

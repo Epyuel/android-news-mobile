@@ -27,6 +27,7 @@ export function useNews() {
           image: String(data.image ?? ''),
           description: String(data.description ?? ''),
           descriptionText: String(data.descriptionText ?? ''),
+          views: typeof data.views === 'number' && Number.isFinite(data.views) ? Math.max(0, data.views) : 0,
           status: data.status === 'inactive' ? 'inactive' : 'active',
         } satisfies News;
       }).filter((item) => item.status === 'active')

@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "DANA HD",
-    "slug": "android-news-mobile",
+    "slug": "dana-hd",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -11,6 +11,8 @@
       "icon": "./assets/images/icon.png"
     },
     "android": {
+      "package":"com.haileyesus.danahd",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#003e47",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -33,11 +35,39 @@
           "imageWidth": 104
         }
       ],
-      "expo-localization"
+      "expo-localization",
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "default",
+          "color": "#003e47"
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "granularPermissions": ["video"],
+          "savePhotosPermission": "Allow DANA HD to save downloaded videos to your gallery."
+        }
+      ],
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-9547784129716633~2600653654",
+          "iosAppId": "ca-app-pub-3940256099942544~1458002511"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f375e787-ed6e-468c-b4f7-88c04a104f95"
+      }
+    },
+    "owner": "epyuel"
   }
 }
