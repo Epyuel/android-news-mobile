@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { ArrowLeft, Bell, Bookmark, BookmarkCheck, ChevronDown, ChevronUp, Info, Search, Settings, Share2, Shield, Star, Trash2, X } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight, Bell, Bookmark, BookmarkCheck, ChevronDown, ChevronUp, ExternalLink, Info, Search, Settings, Share2, Shield, Star, Trash2, X } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type PropsWithChildren, type ReactNode } from 'react';
 import { ActivityIndicator, Alert, Animated, Modal, Pressable, ScrollView, Share, StatusBar, StyleSheet, Switch, Text, TextInput, View, type TextStyle } from 'react-native';
@@ -20,6 +20,7 @@ import { useAdsConfiguration } from '@/components/ads-provider';
 
 const playStoreAppSearch = 'https://play.google.com/store/search?q=DANA%20HD&c=apps';
 const playStorePublisherSearch = 'https://play.google.com/store/search?q=Kana%20Plus&c=apps';
+const publicNewsBaseUrl = (process.env.EXPO_PUBLIC_NEWS_BASE_URL || 'https://www.takoma.kanapress.net').replace(/\/$/, '');
 
 type LegalHtmlNode = { tag: string; attributes: Record<string, string>; children: Array<LegalHtmlNode | string> };
 
@@ -90,6 +91,28 @@ function htmlTextAlign(style = '') {
   return alignment as 'left' | 'center' | 'right' | 'justify' | undefined;
 }
 
+function openRichTextLink(url: string) {
+  if (/^(https?:\/\/|mailto:|tel:)/i.test(url)) {
+    void ExpoLinking.openURL(url).catch(() => undefined);
+  }
+}
+
+function containsMobileButtonMarker(nodes: Array<LegalHtmlNode | string>): boolean {
+  return nodes.some((node) => typeof node !== 'string' && (
+    node.attributes['data-mobile-button'] === 'true' || containsMobileButtonMarker(node.children)
+  ));
+}
+
+function richTextButtonLabel(nodes: Array<LegalHtmlNode | string>): string {
+  return nodes.map((node) => typeof node === 'string' ? node : richTextButtonLabel(node.children)).join('').trim();
+}
+
+function isRichTextButton(node: LegalHtmlNode | string): node is LegalHtmlNode {
+  return typeof node !== 'string' && node.tag === 'a' && (
+    node.attributes['data-mobile-button'] === 'true' || containsMobileButtonMarker(node.children)
+  );
+}
+
 function LegalInline({ node, theme, onLink }: { node: LegalHtmlNode | string; theme: ReturnType<typeof useTheme>; onLink: (url: string) => void }): ReactNode {
   if (typeof node === 'string') return node;
   if (node.tag === 'br') return '\n';
@@ -101,15 +124,32 @@ function LegalInline({ node, theme, onLink }: { node: LegalHtmlNode | string; th
   if (node.tag === 'u') style.push({ textDecorationLine: 'underline' });
   if (['s', 'strike', 'del'].includes(node.tag)) style.push({ textDecorationLine: 'line-through' });
   if (node.tag === 'code') style.push({ fontFamily: 'monospace', backgroundColor: theme.backgroundElement });
-  if (node.tag === 'a') style.push({ color: '#147fe8', textDecorationLine: 'underline' });
+  const isMobileButton = node.tag === 'a' && (
+    node.attributes['data-mobile-button'] === 'true' || containsMobileButtonMarker(node.children)
+  );
+  if (isMobileButton) {
+    style.push({
+      color: '#ffffff',
+      backgroundColor: '#147fe8',
+      textDecorationLine: 'none',
+      fontWeight: '700',
+      fontSize: 15,
+      lineHeight: 21,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 14,
+    });
+  } else if (node.tag === 'a') {
+    style.push({ color: '#147fe8', textDecorationLine: 'underline' });
+  }
   const color = htmlTextColor(node.attributes.style);
-  if (color) style.push({ color });
+  if (color && !isMobileButton) style.push({ color });
 
   const href = node.attributes.href;
   const children = node.children.map((child, index) => <LegalInline key={index} node={child} theme={theme} onLink={onLink} />);
   return (
     <Text style={style} onPress={node.tag === 'a' && href ? () => onLink(href) : undefined}>
-      {children}
+      {isMobileButton ? '\u2197 ' : null}{children}
     </Text>
   );
 }
@@ -130,6 +170,41 @@ function LegalBlock({ node, theme, onLink }: {
 
   if (node.tag === 'p' || /^h[1-6]$/.test(node.tag) || node.tag === 'pre') {
     const headingSize: Record<string, number> = { h1: 24, h2: 20, h3: 18, h4: 17, h5: 16, h6: 16 };
+    const buttonLinks = children.some(isRichTextButton);
+    if (node.tag === 'p' && buttonLinks) {
+      const rows: ReactNode[] = [];
+      let inlineNodes: Array<LegalHtmlNode | string> = [];
+      const flushInline = () => {
+        if (!inlineNodes.length) return;
+        rows.push(<Text key={`text-${rows.length}`} selectable style={textStyle}>{inlineNodes.map((child, index) => <LegalInline key={index} node={child} theme={theme} onLink={onLink} />)}</Text>);
+        inlineNodes = [];
+      };
+      children.forEach((child) => {
+        if (!isRichTextButton(child)) {
+          inlineNodes.push(child);
+          return;
+        }
+        flushInline();
+        const href = child.attributes.href;
+        rows.push(
+          <Pressable
+            key={`button-${rows.length}`}
+            accessibilityRole="button"
+            accessibilityLabel={richTextButtonLabel(child.children)}
+            disabled={!href}
+            onPress={href ? () => onLink(href) : undefined}
+            style={styles.richTextLinkButton}
+          >
+            <View style={styles.richTextLinkButtonContent}>
+              <ExternalLink size={17} color="#ffffff" />
+              <Text style={styles.richTextLinkButtonText}>{richTextButtonLabel(child.children)}</Text>
+            </View>
+          </Pressable>,
+        );
+      });
+      flushInline();
+      return <View style={{ marginBottom: 14, alignItems: 'flex-start', gap: 10 }}>{rows}</View>;
+    }
     return (
       <View style={{ marginBottom: node.tag === 'p' ? 14 : 10 }}>
         <Text selectable style={[
@@ -158,9 +233,7 @@ function LegalBlock({ node, theme, onLink }: {
   if (node.tag === 'li') {
     return (
       <View>
-        {children.map((child, index) => typeof child !== 'string' && child.tag === 'p'
-          ? <Text key={index} selectable style={[textStyle, { marginBottom: 3 }]}>{child.children.map((inline, inlineIndex) => <LegalInline key={inlineIndex} node={inline} theme={theme} onLink={onLink} />)}</Text>
-          : <LegalBlock key={index} node={child} theme={theme} onLink={onLink} />)}
+        {children.map((child, index) => <LegalBlock key={index} node={child} theme={theme} onLink={onLink} />)}
       </View>
     );
   }
@@ -305,7 +378,7 @@ export function MobileShell({ active, children, bannerPlacement }: PropsWithChil
               <Image source={require('@/assets/images/dana-logo-source.png')} style={styles.brandImage} contentFit="contain" />
             </View>
             <View style={[styles.searchPill, { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected }]}>
-              <Search size={21} color={theme.textSecondary} strokeWidth={2.2} />
+              <Search size={25} color={theme.textSecondary} strokeWidth={2.2} />
               <TextInput
                 accessibilityLabel={t('search')}
                 placeholder="DANA HD"
@@ -352,9 +425,7 @@ export function MobileShell({ active, children, bannerPlacement }: PropsWithChil
                 const richHtml = typeof raw === 'string' && /<\/?[a-z][^>]*>/i.test(raw) ? raw : '';
                 const content = plain?.trim() || (typeof raw === 'string' && !richHtml ? raw.trim() : '');
                 return richHtml ? (
-                  <LegalDocument html={richHtml} theme={theme} onLink={(url) => {
-                    if (/^https?:\/\//i.test(url)) void ExpoLinking.openURL(url).catch(() => undefined);
-                  }} />
+                  <LegalDocument html={richHtml} theme={theme} onLink={openRichTextLink} />
                 ) : content ? (
                   <Text selectable style={[styles.legalText, { color: theme.text }]}>{content}</Text>
                 ) : (
@@ -448,7 +519,7 @@ function SettingsAction({ icon, title, subtitle, onPress, theme }: {
   );
 }
 
-export function NewsFeed({ items, relatedItems = items, categories, savedIds, onToggleSaved, emptyMessage, featuredFirst = true }: {
+export function NewsFeed({ items, relatedItems = items, categories, savedIds, onToggleSaved, emptyMessage, featuredFirst = true, initialNewsId }: {
   items: News[];
   relatedItems?: News[];
   categories: NewsCategory[];
@@ -456,6 +527,7 @@ export function NewsFeed({ items, relatedItems = items, categories, savedIds, on
   onToggleSaved: (id: string) => void;
   emptyMessage: string;
   featuredFirst?: boolean;
+  initialNewsId?: string;
 }) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -464,13 +536,26 @@ export function NewsFeed({ items, relatedItems = items, categories, savedIds, on
   const interstitialEnabled = ads.adStatus === 'on' && (ads.placements.interstitialPostList || ads.placements.interstitialPostDetails);
   const [interstitialRequestCount, setInterstitialRequestCount] = useState(0);
   const [selected, setSelected] = useState<News | null>(null);
+  const detailScrollRef = useRef<ScrollView>(null);
+  const openedSharedNewsRef = useRef<string | null>(null);
   const nativeInterval = ads.nativeAdInterval;
   const nativeEnabled = ads.adStatus === 'on' && ads.nativeAdsEnabled && ads.placements.nativePostList && Boolean(ads.admobNativeAdUnitId);
-  const openNews = (item: News) => {
+  const openNews = useCallback((item: News) => {
     setSelected(item);
     setInterstitialRequestCount((count) => count + 1);
     void updateDoc(doc(db, 'news', item.id), { views: increment(1) }).catch(() => undefined);
-  };
+  }, []);
+  useEffect(() => {
+    if (!initialNewsId || openedSharedNewsRef.current === initialNewsId) return;
+    const sharedNews = items.find((item) => item.id === initialNewsId);
+    if (!sharedNews) return;
+    openedSharedNewsRef.current = initialNewsId;
+    openNews(sharedNews);
+  }, [initialNewsId, items, openNews]);
+  useEffect(() => {
+    if (!selected) return;
+    requestAnimationFrame(() => detailScrollRef.current?.scrollTo({ y: 0, animated: false }));
+  }, [selected?.id]);
   const related = selected ? relatedItems.filter((item) => item.id !== selected.id && item.categoryId === selected.categoryId).slice(0, 6) : [];
   if (!items.length) {
     return <View style={styles.emptyWrap}><Text style={[styles.empty, { color: theme.textSecondary }]}>{emptyMessage}</Text></View>;
@@ -505,23 +590,31 @@ export function NewsFeed({ items, relatedItems = items, categories, savedIds, on
             <Pressable accessibilityLabel={t('close')} onPress={() => setSelected(null)} style={styles.detailClose}>
               <X size={22} color={theme.textSecondary} />
             </Pressable>
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.detailScroll}>
+            <ScrollView ref={detailScrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={styles.detailScroll}>
               {selected?.image ? <Image source={{ uri: selected.image }} style={styles.detailImage} contentFit="cover" transition={180} /> : null}
               <Text style={[styles.detailTitle, { color: theme.text }]}>{selected?.title}</Text>
               <Text style={[styles.dateText, { color: theme.textSecondary }]}>{selected ? formatNewsDate(selected.date, i18n.language) : ''}</Text>
-              <Text style={[styles.detailDescription, { color: theme.text }]}>{selected?.descriptionText || stripHtml(selected?.description ?? '') || t('noDescription')}</Text>
+              {selected?.description && /<\/?[a-z][^>]*>/i.test(selected.description) ? (
+                <View style={{ marginTop: 18 }}>
+                  <LegalDocument html={selected.description} theme={theme} onLink={openRichTextLink} />
+                </View>
+              ) : (
+                <Text style={[styles.detailDescription, { color: theme.text }]}>{selected?.descriptionText || stripHtml(selected?.description ?? '') || t('noDescription')}</Text>
+              )}
               {ads.adStatus === 'on' && ads.nativeAdsEnabled && ads.placements.nativePostDetails ? <NativeFeedAd size={ads.nativeAdStyles.postDetails} enabled /> : null}
               <AdBanner placement="bannerPostDetails" />
               {related.length ? (
                 <View style={styles.relatedSection}>
                   <Text style={[styles.relatedHeading, { color: theme.text }]}>{t('relatedNews')}</Text>
                   {related.map((item) => (
-                    <Pressable key={item.id} onPress={() => openNews(item)} style={[styles.relatedItem, { borderBottomColor: theme.backgroundSelected }]}>
-                      {item.image ? <Image source={{ uri: item.image }} style={styles.relatedImage} contentFit="cover" /> : null}
+                    <Pressable key={item.id} onPress={() => openNews(item)} style={[styles.relatedCard, { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected }]}>
+                      {item.image ? <Image source={{ uri: item.image }} style={styles.relatedImage} contentFit="cover" transition={160} /> : <View style={[styles.relatedImage, styles.relatedImageFallback, { backgroundColor: theme.backgroundSelected }]} />}
                       <View style={styles.relatedCopy}>
+                        <Text numberOfLines={1} style={styles.relatedCategory}>{categories.find((category) => category.id === item.categoryId)?.name || ''}</Text>
                         <Text numberOfLines={2} style={[styles.relatedTitle, { color: theme.text }]}>{item.title}</Text>
                         <Text numberOfLines={2} style={[styles.relatedDescription, { color: theme.textSecondary }]}>{item.descriptionText || stripHtml(item.description)}</Text>
                       </View>
+                      <ArrowRight size={17} color={theme.textSecondary} />
                     </Pressable>
                   ))}
                 </View>
@@ -548,7 +641,8 @@ export function NewsCard({ news, category, featured = false, saved, onToggleSave
   const description = news.descriptionText || stripHtml(news.description);
 
   const share = async () => {
-    await Share.share({ title: news.title, message: `${news.title}\n\n${description}` });
+    const postUrl = `${publicNewsBaseUrl}/post/${encodeURIComponent(news.id)}`;
+    await Share.share({ title: news.title, message: postUrl, url: postUrl });
   };
 
   return (
@@ -648,7 +742,7 @@ const styles = StyleSheet.create({
   searchHeader: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10, paddingHorizontal: 18, paddingTop: 6, paddingBottom: 9 },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
   searchPill: { flex: 1, height: 48, borderRadius: 24, borderWidth: 1, borderBottomWidth: 0, paddingLeft: 14, paddingRight: 6, flexDirection: 'row', alignItems: 'center', gap: 10, shadowColor: '#6792c0', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2 },
-  searchInput: { flex: 1, minWidth: 0, fontSize: 14, paddingVertical: 5 },
+  searchInput: { flex: 1, minWidth: 0, fontSize: 17, paddingVertical: 5 },
   settingsButton: { width: 46, height: 46, borderRadius: 23, borderWidth: 1, alignItems: 'center', justifyContent: 'center', shadowColor: '#6792c0', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
   brandButton: { width: 46, height: 46, borderRadius: 23, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: '#003e47', borderWidth: 1, borderColor: '#003e47', shadowColor: '#6f91b4', shadowOpacity: 0.14, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
   brandImage: { width: 44, height: 44 },
@@ -659,15 +753,20 @@ const styles = StyleSheet.create({
   detailClose: { alignSelf: 'flex-end', width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
   detailScroll: { paddingBottom: 18 },
   detailImage: { width: '100%', aspectRatio: 1.58, borderRadius: 17, backgroundColor: '#dce8f4', marginBottom: 20 },
+  richTextLinkButton: { minHeight: 52, alignSelf: 'flex-start', justifyContent: 'center', paddingHorizontal: 22, paddingVertical: 12, borderRadius: 26, backgroundColor: '#147fe8', shadowColor: '#147fe8', shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
+  richTextLinkButtonContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  richTextLinkButtonText: { color: '#ffffff', fontSize: 15, lineHeight: 21, fontWeight: '700' },
   detailTitle: { fontSize: 25, lineHeight: 32, fontWeight: '800', marginBottom: 8 },
   detailDescription: { marginTop: 18, fontSize: 16, lineHeight: 26 },
-  relatedSection: { marginTop: 24, gap: 5 },
-  relatedHeading: { fontSize: 18, fontWeight: '700', marginBottom: 5 },
-  relatedItem: { minHeight: 82, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth },
-  relatedImage: { width: 88, height: 66, borderRadius: 9, backgroundColor: '#dce8f4' },
+  relatedSection: { marginTop: 26, gap: 10 },
+  relatedHeading: { fontSize: 18, fontWeight: '700', marginBottom: 2 },
+  relatedCard: { minHeight: 102, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderWidth: StyleSheet.hairlineWidth, borderRadius: 15, shadowColor: '#26384f', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 1 },
+  relatedImage: { width: 82, height: 82, borderRadius: 11, backgroundColor: '#dce8f4' },
+  relatedImageFallback: { opacity: 0.65 },
   relatedCopy: { flex: 1, gap: 4 },
+  relatedCategory: { color: '#147fe8', fontSize: 11, fontWeight: '700' },
   relatedTitle: { fontSize: 14, lineHeight: 19, fontWeight: '700' },
-  relatedDescription: { fontSize: 12, lineHeight: 17 },
+  relatedDescription: { fontSize: 12, lineHeight: 16 },
   detailActions: { flexDirection: 'row', gap: 10, paddingTop: 10 },
   detailAction: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
   settingsScreen: { flex: 1 },
@@ -700,7 +799,7 @@ const styles = StyleSheet.create({
   card: { borderRadius: 24, overflow: 'hidden', padding: 15, shadowColor: '#334a68', shadowOpacity: 0.08, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 3 },
   newsImage: { width: '100%', borderRadius: 17, backgroundColor: '#dce8f4' },
   featuredImage: { aspectRatio: 1.58 },
-  compactImage: { width: 104, height: 126 },
+  compactImage: { width: 142, height: 126 },
   imagePlaceholder: { borderRadius: 17 },
   featuredCopy: { paddingTop: 14 },
   compactCopy: { flex: 1, paddingLeft: 13, paddingTop: 2, gap: 4 },

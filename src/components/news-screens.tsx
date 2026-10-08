@@ -1,10 +1,12 @@
 import { useTranslation } from 'react-i18next';
 import { useEffect, useMemo, useState } from 'react';
+import { useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Link2, MessageCircle, Play, X } from 'lucide-react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library/legacy';
+import * as ExpoLinking from 'expo-linking';
 import { WebView } from 'react-native-webview';
 import { SiFacebook, SiInstagram, SiTelegram, SiTiktok, SiYoutube } from '@thinkhuman/react-native-simple-icons';
 import { collection, onSnapshot } from 'firebase/firestore';
@@ -18,6 +20,8 @@ import { NativeFeedAd } from '@/components/ad-units';
 import { useAdsConfiguration } from '@/components/ads-provider';
 
 export function HomeScreen() {
+  const params = useLocalSearchParams<{ newsId?: string }>();
+  const initialNewsId = typeof params.newsId === 'string' ? params.newsId : undefined;
   const { news, categories, loading, error } = useNews();
   const { savedIds, toggleSaved } = useSavedNews();
   const { t } = useTranslation();
@@ -50,7 +54,7 @@ export function HomeScreen() {
           </View>
         ) : null}
         {loading || error ? <LoadingOrError loading={loading} error={error} /> : (
-          <NewsFeed items={visible} relatedItems={news} categories={categories} savedIds={savedIds} onToggleSaved={toggleSaved} emptyMessage={query ? t('emptySearch') : t('emptyNews')} />
+          <NewsFeed items={visible} relatedItems={news} categories={categories} savedIds={savedIds} onToggleSaved={toggleSaved} emptyMessage={query ? t('emptySearch') : t('emptyNews')} initialNewsId={initialNewsId} />
         )}
       </ContentScroll>
     </MobileShell>

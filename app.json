@@ -8,11 +8,23 @@
     "scheme": "androidnewsmobile",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/images/icon.png"
+      "icon": "./assets/images/icon.png",
+      "bundleIdentifier": "com.haileyesus.danahd",
+      "associatedDomains": ["applinks:www.takoma.kanapress.net"]
     },
     "android": {
       "package":"com.haileyesus.danahd",
       "googleServicesFile": "./google-services.json",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            { "scheme": "https", "host": "www.takoma.kanapress.net", "pathPrefix": "/post/" }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#003e47",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
