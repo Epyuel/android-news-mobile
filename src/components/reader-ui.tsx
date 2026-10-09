@@ -20,7 +20,7 @@ import { useAdsConfiguration } from '@/components/ads-provider';
 
 const playStoreAppSearch = 'https://play.google.com/store/search?q=DANA%20HD&c=apps';
 const playStorePublisherSearch = 'https://play.google.com/store/search?q=Kana%20Plus&c=apps';
-const publicNewsBaseUrl = (process.env.EXPO_PUBLIC_NEWS_BASE_URL || 'https://www.takoma.kanapress.net').replace(/\/$/, '');
+const publicNewsBaseUrl = (process.env.EXPO_PUBLIC_NEWS_BASE_URL || 'https://android-news.vercel.app').replace(/\/$/, '');
 
 type LegalHtmlNode = { tag: string; attributes: Record<string, string>; children: Array<LegalHtmlNode | string> };
 

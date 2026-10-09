@@ -10,7 +10,7 @@
     "ios": {
       "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.haileyesus.danahd",
-      "associatedDomains": ["applinks:www.takoma.kanapress.net"]
+      "associatedDomains": ["applinks:android-news.vercel.app"]
     },
     "android": {
       "package":"com.haileyesus.danahd",
@@ -20,7 +20,7 @@
           "action": "VIEW",
           "autoVerify": true,
           "data": [
-            { "scheme": "https", "host": "www.takoma.kanapress.net", "pathPrefix": "/post/" }
+            { "scheme": "https", "host": "android-news.vercel.app", "pathPrefix": "/post/" }
           ],
           "category": ["BROWSABLE", "DEFAULT"]
         }
