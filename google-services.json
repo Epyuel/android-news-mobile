@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "913591199505",
-    "project_id": "android-news-fabfe",
-    "storage_bucket": "android-news-fabfe.firebasestorage.app"
+    "project_number": "660333040420",
+    "project_id": "dana-hd",
+    "storage_bucket": "dana-hd.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:913591199505:android:f12e856dfe376e86834eb0",
+        "mobilesdk_app_id": "1:660333040420:android:b06d2419c6503883cd59b1",
         "android_client_info": {
           "package_name": "com.haileyesus.danahd"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDxB3CqTw2XO2EcCAqewgHyY7zaBk18B9c"
+          "current_key": "AIzaSyAxXQ0tWhDLDdS2H8T6JZoocoKbg4T4pvg"
         }
       ],
       "services": {
