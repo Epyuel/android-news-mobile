@@ -86,9 +86,10 @@ function htmlTextColor(style = '') {
   return color;
 }
 
-function htmlTextAlign(style = '') {
+function htmlTextAlign(style = '', className = '') {
   const alignment = style.match(/(?:^|;)\s*text-align\s*:\s*(left|center|right|justify)/i)?.[1]?.toLowerCase();
-  return alignment as 'left' | 'center' | 'right' | 'justify' | undefined;
+  const classAlignment = className.match(/(?:^|\s)ql-align-(left|center|right|justify)(?:\s|$)/i)?.[1]?.toLowerCase();
+  return (alignment ?? classAlignment) as 'left' | 'center' | 'right' | 'justify' | undefined;
 }
 
 function openRichTextLink(url: string) {
@@ -154,24 +155,27 @@ function LegalInline({ node, theme, onLink }: { node: LegalHtmlNode | string; th
   );
 }
 
-function LegalBlock({ node, theme, onLink }: {
+function LegalBlock({ node, theme, onLink, inheritedAlign: parentAlign }: {
   node: LegalHtmlNode | string;
   theme: ReturnType<typeof useTheme>;
   onLink: (url: string) => void;
+  inheritedAlign?: 'left' | 'center' | 'right' | 'justify';
 }): ReactNode {
-  if (typeof node === 'string') return <Text style={{ color: theme.text, fontSize: 16, lineHeight: 27 }}>{node}</Text>;
+  if (typeof node === 'string') return <Text style={{ color: theme.text, fontSize: 16, lineHeight: 27, textAlign: parentAlign }}>{node}</Text>;
   if (node.tag === 'br') return <View style={{ height: 10 }} />;
   if (node.tag === 'hr') return <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderColor: theme.backgroundSelected, marginVertical: 12 }} />;
 
   const children = node.children;
-  const renderChildren = () => children.map((child, index) => <LegalBlock key={index} node={child} theme={theme} onLink={onLink} />);
+  const inheritedAlign = htmlTextAlign(node.attributes.style, node.attributes.class) ?? parentAlign;
+  const renderChildren = () => children.map((child, index) => <LegalBlock key={index} node={child} theme={theme} onLink={onLink} inheritedAlign={inheritedAlign} />);
   const textChildren = children.map((child, index) => <LegalInline key={index} node={child} theme={theme} onLink={onLink} />);
-  const textStyle = { color: theme.text, fontSize: 16, lineHeight: 27, textAlign: htmlTextAlign(node.attributes.style) } as const;
+  const textStyle = { color: theme.text, fontSize: 16, lineHeight: 27, textAlign: inheritedAlign } as const;
 
   if (node.tag === 'p' || /^h[1-6]$/.test(node.tag) || node.tag === 'pre') {
     const headingSize: Record<string, number> = { h1: 24, h2: 20, h3: 18, h4: 17, h5: 16, h6: 16 };
     const buttonLinks = children.some(isRichTextButton);
     if (node.tag === 'p' && buttonLinks) {
+      const buttonAlignment = inheritedAlign === 'center' ? 'center' : inheritedAlign === 'right' ? 'flex-end' : 'flex-start';
       const rows: ReactNode[] = [];
       let inlineNodes: Array<LegalHtmlNode | string> = [];
       const flushInline = () => {
@@ -193,7 +197,7 @@ function LegalBlock({ node, theme, onLink }: {
             accessibilityLabel={richTextButtonLabel(child.children)}
             disabled={!href}
             onPress={href ? () => onLink(href) : undefined}
-            style={styles.richTextLinkButton}
+            style={[styles.richTextLinkButton, { alignSelf: buttonAlignment }]}
           >
             <View style={styles.richTextLinkButtonContent}>
               <ExternalLink size={17} color="#ffffff" />
@@ -203,7 +207,7 @@ function LegalBlock({ node, theme, onLink }: {
         );
       });
       flushInline();
-      return <View style={{ marginBottom: 14, alignItems: 'flex-start', gap: 10 }}>{rows}</View>;
+      return <View style={{ marginBottom: 14, alignItems: 'stretch', gap: 10 }}>{rows}</View>;
     }
     return (
       <View style={{ marginBottom: node.tag === 'p' ? 14 : 10 }}>
@@ -223,7 +227,7 @@ function LegalBlock({ node, theme, onLink }: {
         {items.map((item, index) => (
           <View key={index} style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 5 }}>
             <Text style={{ color: theme.text, fontSize: 16, lineHeight: 27, width: 28 }}>{node.tag === 'ol' ? `${index + 1}.` : '•'}</Text>
-            <View style={{ flex: 1 }}><LegalBlock node={item} theme={theme} onLink={onLink} /></View>
+            <View style={{ flex: 1 }}><LegalBlock node={item} theme={theme} onLink={onLink} inheritedAlign={inheritedAlign} /></View>
           </View>
         ))}
       </View>
@@ -233,7 +237,7 @@ function LegalBlock({ node, theme, onLink }: {
   if (node.tag === 'li') {
     return (
       <View>
-        {children.map((child, index) => <LegalBlock key={index} node={child} theme={theme} onLink={onLink} />)}
+        {children.map((child, index) => <LegalBlock key={index} node={child} theme={theme} onLink={onLink} inheritedAlign={inheritedAlign} />)}
       </View>
     );
   }
@@ -753,7 +757,7 @@ const styles = StyleSheet.create({
   detailClose: { alignSelf: 'flex-end', width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
   detailScroll: { paddingBottom: 18 },
   detailImage: { width: '100%', aspectRatio: 1.58, borderRadius: 17, backgroundColor: '#dce8f4', marginBottom: 20 },
-  richTextLinkButton: { minHeight: 52, alignSelf: 'flex-start', justifyContent: 'center', paddingHorizontal: 22, paddingVertical: 12, borderRadius: 26, backgroundColor: '#147fe8', shadowColor: '#147fe8', shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
+  richTextLinkButton: { minWidth: 210, maxWidth: '100%', minHeight: 52, justifyContent: 'center', paddingHorizontal: 26, paddingVertical: 12, borderRadius: 26, backgroundColor: '#147fe8', shadowColor: '#147fe8', shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
   richTextLinkButtonContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
   richTextLinkButtonText: { color: '#ffffff', fontSize: 15, lineHeight: 21, fontWeight: '700' },
   detailTitle: { fontSize: 25, lineHeight: 32, fontWeight: '800', marginBottom: 8 },
