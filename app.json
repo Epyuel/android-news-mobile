@@ -10,17 +10,21 @@
     "ios": {
       "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.haileyesus.danahd",
-      "associatedDomains": ["applinks:android-news.vercel.app"]
+      "associatedDomains": ["applinks:dana-hd.vercel.app"]
     },
     "android": {
-      "package":"com.haileyesus.danahd",
+      "package": "com.haileyesus.danahd",
       "googleServicesFile": "./google-services.json",
       "intentFilters": [
         {
           "action": "VIEW",
           "autoVerify": true,
           "data": [
-            { "scheme": "https", "host": "android-news.vercel.app", "pathPrefix": "/post/" }
+            {
+              "scheme": "https",
+              "host": "dana-hd.vercel.app",
+              "pathPrefix": "/post/"
+            }
           ],
           "category": ["BROWSABLE", "DEFAULT"]
         }
