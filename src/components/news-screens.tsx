@@ -22,7 +22,8 @@ import { useAdsConfiguration } from '@/components/ads-provider';
 export function HomeScreen() {
   const params = useLocalSearchParams<{ newsId?: string }>();
   const initialNewsId = typeof params.newsId === 'string' ? params.newsId : undefined;
-  const { news, categories, loading, error } = useNews();
+  const { news:newsData, categories, loading, error } = useNews();
+  const news = newsData.sort((a,b)=>(new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime()))
   const { savedIds, toggleSaved } = useSavedNews();
   const { t } = useTranslation();
   const { query } = useMobileSearch();

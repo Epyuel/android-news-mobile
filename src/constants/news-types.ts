@@ -12,6 +12,7 @@ export interface News {
   descriptionText: string;
   views: number;
   status: NewsStatus;
+  createdAt: string;
 }
 
 export interface NewsCategory {
