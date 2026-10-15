@@ -18,20 +18,22 @@ export function useNews() {
     const stopNews = onSnapshot(collection(db, 'news'), (snapshot) => {
       const items = snapshot.docs.map((item) => {
         const data = item.data();
+        
         return {
-          id: item.id,
-          title: String(data.title ?? ''),
-          date: String(data.date ?? ''),
-          categoryId: String(data.categoryId ?? data.category ?? ''),
-          type: data.type === 'breaking' || data.type === 'featured' ? data.type : 'standard',
-          image: String(data.image ?? ''),
-          description: String(data.description ?? ''),
-          descriptionText: String(data.descriptionText ?? ''),
-          views: typeof data.views === 'number' && Number.isFinite(data.views) ? Math.max(0, data.views) : 0,
-          status: data.status === 'inactive' ? 'inactive' : 'active',
+            id: item.id,
+            title: String(data.title ?? ''),
+            date: String(data.date ?? ''),
+            categoryId: String(data.categoryId ?? data.category ?? ''),
+            type: data.type === 'breaking' || data.type === 'featured' ? data.type : 'standard',
+            image: String(data.image ?? ''),
+            description: String(data.description ?? ''),
+            descriptionText: String(data.descriptionText ?? ''),
+            views: typeof data.views === 'number' && Number.isFinite(data.views) ? Math.max(0, data.views) : 0,
+            status: data.status === 'inactive' ? 'inactive' : 'active',
+            createdAt: data.createdAt?.toDate?.().toISOString()
         } satisfies News;
       }).filter((item) => item.status === 'active')
-        .sort((a, b) => b.date.localeCompare(a.date));
+        .sort((a,b)=>(new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
       setNews(items);
       setError('');
       newsReady = true;
