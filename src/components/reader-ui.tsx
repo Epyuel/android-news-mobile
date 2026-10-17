@@ -16,7 +16,6 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Alert, Animated, Modal, Pressable, ScrollView, Share, StatusBar, StyleSheet, Switch, Text, TextInput, View, type TextStyle } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import appConfig from '../../app.json';
 
 const playStoreAppSearch = 'https://play.google.com/store/search?q=DANA%20HD&c=apps';
 const playStorePublisherSearch = 'https://play.google.com/store/search?q=Onetechnews&c=apps';
@@ -75,7 +74,7 @@ function parseLegalHtml(html: string): LegalHtmlNode[] {
         if (!voidTags.has(tag) && !/\/\s*>$/.test(token)) stack.push(node);
     }
 
-    return root.children.filter((child) => typeof child !== 'string' || Boolean(child.trim()));
+    return root.children.filter((child): child is LegalHtmlNode => typeof child !== 'string' || Boolean(child.trim()));
 }
 
 function htmlTextColor(style = '') {
@@ -360,14 +359,6 @@ export function MobileShell({ active, children, bannerPlacement }: PropsWithChil
         void ExpoLinking.openURL(url).catch(() => Alert.alert(t('settings'), t('settingsLinkUnavailable')));
     };
 
-    const aboutApp = () => {
-        Alert.alert(
-            'DANA HD',
-            `Version ${appConfig.expo.version}\n\n${t('aboutCopyright', { year: new Date().getFullYear() })}`,
-            [{ text: 'OK' }],
-        );
-    };
-
     return (
         <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top', 'left', 'right']}>
             <StatusBar
@@ -466,11 +457,10 @@ export function MobileShell({ active, children, bannerPlacement }: PropsWithChil
 
                             <SettingsGroup title={t('privacy')} subtitle={t('privacyHint')} expanded={expandedSettings === 'privacy'} onPress={() => setExpandedSettings(expandedSettings === 'privacy' ? '' : 'privacy')} theme={theme}>
                                 <SettingsAction icon={<Shield size={19} color={theme.textSecondary} />} title={t('privacyPolicy')} onPress={() => setLegalPage('privacyPolicy')} theme={theme} />
-                                <SettingsAction icon={<Info size={19} color={theme.textSecondary} />} title={t('publisherInfo')} onPress={() => setLegalPage('publisherInfo')} theme={theme} />
                             </SettingsGroup>
 
                             <SettingsGroup title={t('about')} subtitle={t('aboutHint')} expanded={expandedSettings === 'about'} onPress={() => setExpandedSettings(expandedSettings === 'about' ? '' : 'about')} theme={theme}>
-                                <SettingsAction icon={<Info size={19} color={theme.textSecondary} />} title={t('aboutUs')} onPress={aboutApp} theme={theme} />
+                                <SettingsAction icon={<Info size={19} color={theme.textSecondary} />} title={t('aboutUs')} onPress={() => setLegalPage('publisherInfo')} theme={theme} />
                                 <SettingsAction icon={<Star size={19} color={theme.textSecondary} />} title={t('rateUs')} onPress={() => openStoreLink(playStoreAppSearch)} theme={theme} />
                                 <SettingsAction icon={<Share2 size={19} color={theme.textSecondary} />} title={t('shareFriends')} onPress={() => void Share.share({ message: playStoreAppSearch })} theme={theme} />
                                 <SettingsAction icon={<Settings size={19} color={theme.textSecondary} />} title={t('moreApps')} onPress={() => openStoreLink(playStorePublisherSearch)} theme={theme} />

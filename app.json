@@ -10,7 +10,9 @@
     "ios": {
       "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.haileyesus.danahd",
-      "associatedDomains": ["applinks:dana-hd.vercel.app"]
+      "associatedDomains": [
+        "applinks:dana-hd.vercel.app"
+      ]
     },
     "android": {
       "package": "com.haileyesus.danahd",
@@ -26,7 +28,10 @@
               "pathPrefix": "/post/"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ],
       "adaptiveIcon": {
@@ -62,7 +67,9 @@
       [
         "expo-media-library",
         {
-          "granularPermissions": ["video"],
+          "granularPermissions": [
+            "video"
+          ],
           "savePhotosPermission": "Allow DANA HD to save downloaded videos to your gallery."
         }
       ],
@@ -81,9 +88,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "f375e787-ed6e-468c-b4f7-88c04a104f95"
+        "projectId": "a9973a7c-de38-47d6-937e-305ed2956ae5"
       }
     },
-    "owner": "epyuel"
+    "owner": "eyu009s-team"
   }
 }
